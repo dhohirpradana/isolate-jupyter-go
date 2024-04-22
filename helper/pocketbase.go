@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/gofiber/fiber/v2"
-	"io/ioutil"
+	"io"
 	"net/http"
 )
 
@@ -19,7 +19,9 @@ func CheckPBConnection() bool {
 		return false
 	}
 
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(resp.Body)
 
 	if resp.StatusCode == http.StatusNotFound {
 		return true
@@ -47,15 +49,17 @@ func getToken() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(resp.Body)
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
 
 	var data map[string]interface{}
-	err = json.Unmarshal([]byte(body), &data)
+	err = json.Unmarshal(body, &data)
 	if err != nil {
 		return "", err
 	}
@@ -88,15 +92,17 @@ func CheckUser(email, username string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(resp.Body)
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
 
 	var data map[string]interface{}
-	err = json.Unmarshal([]byte(body), &data)
+	err = json.Unmarshal(body, &data)
 	if err != nil {
 		return err
 	}
@@ -173,7 +179,9 @@ func CreateUser(email, username, password, firstname, lastname, jPort, createdBy
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(resp.Body)
 
 	return nil
 }
