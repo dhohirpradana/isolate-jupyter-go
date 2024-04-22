@@ -20,8 +20,8 @@ func (h RegisterHandler) Register(c *fiber.Ctx) (err error) {
 		return fiber.NewError(fiber.StatusInternalServerError, "Pocketbase service not OK")
 	}
 
-	okHDFS := CheckHDFSConnection()
-	if !okHDFS {
+	err = CheckHDFSConnection()
+	if err != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, "HDFS service not OK")
 	}
 
@@ -40,13 +40,9 @@ func (h RegisterHandler) Register(c *fiber.Ctx) (err error) {
 	}
 
 	// Check User
-	isUserExists, err := CheckUser(register.Email, register.Username)
+	err = CheckUser(register.Email, register.Username)
 	if err != nil {
 		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
-	}
-
-	if isUserExists {
-		return fiber.NewError(fiber.StatusUnprocessableEntity, "User already exists")
 	}
 
 	// Get Unused Port
@@ -60,6 +56,13 @@ func (h RegisterHandler) Register(c *fiber.Ctx) (err error) {
 	err = GenerateYaml(register.Username, port)
 	if err != nil {
 		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
+	}
+
+	// HDFS
+	path := "/usersapujagad/" + register.Company + "/" + register.Username
+	err = HDFSMkdir(path)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "HDFS mkdir not OK")
 	}
 
 	// Kubectl

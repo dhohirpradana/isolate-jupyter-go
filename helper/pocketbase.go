@@ -15,6 +15,9 @@ func CheckPBConnection() bool {
 		return false
 	}
 	resp, err := HttpRequest(fiber.MethodGet, env.PbUrl, nil, nil)
+	if err != nil {
+		return false
+	}
 
 	defer resp.Body.Close()
 
@@ -65,15 +68,15 @@ func getToken() (string, error) {
 	return token, nil
 }
 
-func CheckUser(email, username string) (bool, error) {
+func CheckUser(email, username string) error {
 	env, err := LoadEnv()
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	token, err := getToken()
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	headers := map[string]string{
@@ -83,24 +86,24 @@ func CheckUser(email, username string) (bool, error) {
 
 	resp, err := HttpRequest(fiber.MethodGet, env.PbUserUrl, nil, headers)
 	if err != nil {
-		return false, err
+		return err
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	var data map[string]interface{}
 	err = json.Unmarshal([]byte(body), &data)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	users, ok := data["items"].([]interface{})
 	if !ok {
-		return false, errors.New("'users' field is not an array")
+		return errors.New("'users' field is not an array")
 	}
 
 	emailExists := false
@@ -125,8 +128,52 @@ func CheckUser(email, username string) (bool, error) {
 	}
 
 	if emailExists || usernameExists {
-		return true, nil
+		return errors.New("pocketbase user already exists")
 	}
 
-	return false, nil
+	return nil
+}
+
+func CreateUser(email, username, password, firstname, lastname, jPort, createdBy, company string) error {
+	env, err := LoadEnv()
+	if err != nil {
+		return err
+	}
+
+	data := map[string]interface{}{
+		"email":           email,
+		"username":        username,
+		"password":        password,
+		"passwordConfirm": password,
+		"firstName":       firstname,
+		"lastName":        lastname,
+		"role":            "authenticated",
+		"jToken":          "test-token-123",
+		"jPort":           jPort,
+		"createdBy":       createdBy,
+		"company":         company,
+	}
+
+	token, err := getToken()
+	if err != nil {
+		return err
+	}
+
+	jsonBytes, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	headers := map[string]string{
+		fiber.HeaderContentType: fiber.MIMEApplicationJSON,
+		"Authorization":         "Bearer " + token,
+	}
+
+	resp, err := HttpRequest(fiber.MethodPost, env.PbUserUrl, bytes.NewReader(jsonBytes), headers)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	return nil
 }
