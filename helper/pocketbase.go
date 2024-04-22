@@ -6,7 +6,24 @@ import (
 	"errors"
 	"github.com/gofiber/fiber/v2"
 	"io/ioutil"
+	"net/http"
 )
+
+func CheckPBConnection() bool {
+	env, err := LoadEnv()
+	if err != nil {
+		return false
+	}
+	resp, err := HttpRequest(fiber.MethodGet, env.PbUrl, nil, nil)
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return true
+	} else {
+		return false
+	}
+}
 
 func getToken() (string, error) {
 	env, err := LoadEnv()

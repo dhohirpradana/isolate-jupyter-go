@@ -1,7 +1,6 @@
 package helper
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/gofiber/fiber/v2"
 	"gopkg.in/validator.v2"
@@ -16,6 +15,16 @@ func InitRegister() RegisterHandler {
 }
 
 func (h RegisterHandler) Register(c *fiber.Ctx) (err error) {
+	okPB := CheckPBConnection()
+	if !okPB {
+		return fiber.NewError(fiber.StatusInternalServerError, "Pocketbase service not OK")
+	}
+
+	okHDFS := CheckHDFSConnection()
+	if !okHDFS {
+		return fiber.NewError(fiber.StatusInternalServerError, "HDFS service not OK")
+	}
+
 	var register entity.Register
 
 	if err := c.BodyParser(&register); err != nil {
@@ -30,6 +39,7 @@ func (h RegisterHandler) Register(c *fiber.Ctx) (err error) {
 		return fiber.NewError(fiber.StatusUnprocessableEntity, "Password length min 6")
 	}
 
+	// Check User
 	isUserExists, err := CheckUser(register.Email, register.Username)
 	if err != nil {
 		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
@@ -39,12 +49,7 @@ func (h RegisterHandler) Register(c *fiber.Ctx) (err error) {
 		return fiber.NewError(fiber.StatusUnprocessableEntity, "User already exists")
 	}
 
-	registerBytes, err := json.Marshal(register)
-	if err != nil {
-		fmt.Println("Error serializing struct:", err)
-		return
-	}
-
+	// Get Unused Port
 	port, err := UnusedPort()
 	if err != nil {
 		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
@@ -58,7 +63,7 @@ func (h RegisterHandler) Register(c *fiber.Ctx) (err error) {
 	}
 
 	// Kubectl
-	//cmd := exec.Command("kubectl", "get", "node", "--kubeconfig", "kubeconfig")
+	//cmd := exec.Command("kubectl", "get", "node" , "--kubeconfig", "kubeconfig")
 	//
 	//cmd.Stdout = os.Stdout
 	//
@@ -81,7 +86,7 @@ func (h RegisterHandler) Register(c *fiber.Ctx) (err error) {
 	//defer resp.Body.Close()
 
 	c.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
-	err = c.Send(registerBytes)
+	err = c.Send([]byte("OK"))
 	if err != nil {
 		return err
 	}
