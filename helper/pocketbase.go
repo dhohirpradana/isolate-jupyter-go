@@ -14,11 +14,11 @@ func CheckPBConnection() bool {
 	if err != nil {
 		return false
 	}
+
 	resp, err := HttpRequest(fiber.MethodGet, env.PbUrl, nil, nil)
 	if err != nil {
 		return false
 	}
-
 	defer func(Body io.ReadCloser) {
 		_ = Body.Close()
 	}(resp.Body)
@@ -72,15 +72,15 @@ func getToken() (string, error) {
 	return token, nil
 }
 
-func CheckUser(email, username string) error {
+func ListUsers() ([]interface{}, error) {
 	env, err := LoadEnv()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	token, err := getToken()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	headers := map[string]string{
@@ -90,7 +90,7 @@ func CheckUser(email, username string) error {
 
 	resp, err := HttpRequest(fiber.MethodGet, env.PbUserUrl, nil, headers)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer func(Body io.ReadCloser) {
 		_ = Body.Close()
@@ -98,18 +98,27 @@ func CheckUser(email, username string) error {
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var data map[string]interface{}
 	err = json.Unmarshal(body, &data)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	users, ok := data["items"].([]interface{})
 	if !ok {
-		return errors.New("'users' field is not an array")
+		return nil, errors.New("'users' field is not an array")
+	}
+
+	return users, nil
+}
+
+func CheckUser(username, email string) error {
+	users, err := ListUsers()
+	if err != nil {
+		return err
 	}
 
 	emailExists := false
@@ -182,6 +191,49 @@ func CreateUser(email, username, password, firstname, lastname, jPort, createdBy
 	defer func(Body io.ReadCloser) {
 		_ = Body.Close()
 	}(resp.Body)
+
+	return nil
+}
+
+func DeleteUser(username string) error {
+	env, err := LoadEnv()
+	if err != nil {
+		return err
+	}
+
+	token, err := getToken()
+	if err != nil {
+		return err
+	}
+
+	headers := map[string]string{
+		fiber.HeaderContentType: fiber.MIMEApplicationJSON,
+		"Authorization":         "Bearer " + token,
+	}
+
+	users, err := ListUsers()
+	if err != nil {
+		return err
+	}
+
+	for _, user := range users {
+		if itemMap, ok := user.(map[string]interface{}); ok {
+			if usernameField, ok := itemMap["username"].(string); ok {
+				if usernameField == username {
+					userId := itemMap["id"].(string)
+					resp, err := HttpRequest(fiber.MethodDelete, env.PbUserUrl+"/"+userId, nil, headers)
+					if err != nil {
+						return err
+					}
+					func(Body io.ReadCloser) {
+						_ = Body.Close()
+					}(resp.Body)
+
+					return nil
+				}
+			}
+		}
+	}
 
 	return nil
 }

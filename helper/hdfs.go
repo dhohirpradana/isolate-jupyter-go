@@ -3,6 +3,7 @@ package helper
 import (
 	"errors"
 	"github.com/gofiber/fiber/v2"
+	"io"
 	"net/http"
 )
 
@@ -16,7 +17,9 @@ func CheckHDFSConnection() error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(resp.Body)
 
 	if resp.StatusCode == http.StatusOK {
 		return nil
@@ -37,7 +40,9 @@ func HDFSMkdir(path string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(resp.Body)
 
 	if resp.StatusCode != fiber.StatusOK {
 		return errors.New(string(rune(resp.StatusCode)))
@@ -57,7 +62,9 @@ func HDFSRmdir(path string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(resp.Body)
 
 	if resp.StatusCode != fiber.StatusOK {
 		return errors.New(string(rune(resp.StatusCode)))

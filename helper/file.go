@@ -16,7 +16,9 @@ func getYaml(filePath string) (string, error) {
 		fmt.Println("Error opening file:", err)
 		return "", err
 	}
-	defer file.Close() // Ensure the file is closed when done
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file) // Ensure the file is closed when done
 
 	// Create a buffer to hold the file contents
 	buffer := make([]byte, 1024)
@@ -89,7 +91,9 @@ func GenerateYaml(serviceName, port string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		_ = file.Close()
+	}(file)
 
 	_, err = file.WriteString(replacedString)
 	if err != nil {
