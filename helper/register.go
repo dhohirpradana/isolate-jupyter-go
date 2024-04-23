@@ -99,11 +99,15 @@ func (h RegisterHandler) Register(c *fiber.Ctx) (err error) {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
 
-	// Kubectl Apply YAML
-	applyCommand := "kubectl -n sapujagad2 apply -f " + yamlPath + " --kubeconfig kubeconfig"
-	err = KubeExec(applyCommand)
+	err = KubeExec("cat", []string{yamlPath})
 	if err != nil {
-		_ = DeleteFile(register.Username)
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+
+	// Kubectl Apply YAML
+	applyArgs := []string{"-n", "sapujagad2", "apply", "-f", yamlPath, "--kubeconfig", "kubeconfig"}
+	err = KubeExec("kubectl", applyArgs)
+	if err != nil {
 		_ = HDFSRmdir(path)
 		_ = DeleteUser(register.Username)
 
@@ -114,9 +118,8 @@ func (h RegisterHandler) Register(c *fiber.Ctx) (err error) {
 	jupyterUrl := env.MasterUrl + ":" + port
 	isJupyterReady := IsURLAccessibleRecursive(jupyterUrl, 20, 3*time.Second)
 	if !isJupyterReady {
-		deleteCommand := "kubectl -n sapujagad2 delete -f " + yamlPath + " --kubeconfig kubeconfig"
-		_ = KubeExec(deleteCommand)
-		_ = DeleteFile(register.Username)
+		deleteArgs := []string{"-n", "sapujagad2", "delete", "-f", yamlPath, "--kubeconfig", "kubeconfig"}
+		_ = KubeExec("kubectl", deleteArgs)
 		_ = HDFSRmdir(path)
 		_ = DeleteUser(register.Username)
 
@@ -178,16 +181,19 @@ func (h RegisterHandler) DeleteUser(c *fiber.Ctx) (err error) {
 		return fiber.NewError(fiber.StatusInternalServerError, "Error get company")
 	}
 
-	filePath := "outputs/output-" + username + ".yaml"
-	deleteCommand := "kubectl -n sapujagad2 delete -f " + filePath + " --kubeconfig kubeconfig"
-	_ = KubeExec(deleteCommand)
+	// Generate YAML
+	yamlPath, err := GenerateYaml(username, "00000")
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
 
-	_ = DeleteFile(username)
+	deleteArgs := []string{"-n", "sapujagad2", "delete", "-f", yamlPath, "--kubeconfig kubeconfig"}
+	_ = KubeExec("kubectl", deleteArgs)
 
 	path := "/usersapujagad/" + company + "/" + username
 	_ = HDFSRmdir(path)
 
-	_ = DeleteUser(id)
+	_ = DeleteUser(username)
 
 	return c.SendString("User id, " + id + " username, " + username + " company, " + company + " deleted")
 }

@@ -198,7 +198,7 @@ func CreateUser(email, username, password, firstname, lastname, jPort, createdBy
 	return nil
 }
 
-func DeleteUser(userId string) error {
+func DeleteUser(username string) error {
 	env, err := LoadEnv()
 	if err != nil {
 		fmt.Println("Error delete user", err.Error())
@@ -216,14 +216,32 @@ func DeleteUser(userId string) error {
 		"Authorization":         "Bearer " + token,
 	}
 
-	resp, err := HttpRequest(fiber.MethodDelete, env.PbUserUrl+"/"+userId, nil, headers)
+	users, err := ListUsers()
 	if err != nil {
 		fmt.Println("Error delete user", err.Error())
 		return err
 	}
-	func(Body io.ReadCloser) {
-		_ = Body.Close()
-	}(resp.Body)
+
+	for _, user := range users {
+		if itemMap, ok := user.(map[string]interface{}); ok {
+			if usernameField, ok := itemMap["username"].(string); ok {
+				if usernameField == username {
+					userId := itemMap["id"].(string)
+					resp, err := HttpRequest(fiber.MethodDelete, env.PbUserUrl+"/"+userId, nil, headers)
+					if err != nil {
+						fmt.Println("Error delete user", err.Error())
+						return err
+					}
+					func(Body io.ReadCloser) {
+						_ = Body.Close()
+					}(resp.Body)
+
+					fmt.Println("OK delete user")
+					return nil
+				}
+			}
+		}
+	}
 
 	fmt.Println("OK delete user")
 	return nil

@@ -2,7 +2,7 @@ apiVersion: v1
 kind: PersistentVolume
 metadata:
   name: jupyter-SERVICE_NAME-pv
-  namespace: backend
+  namespace: sapujagad2
 spec:
   storageClassName: manual
   capacity:
@@ -16,7 +16,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: jupyter-SERVICE_NAME-storage-jupyter-SERVICE_NAME-0
-  namespace: backend
+  namespace: sapujagad2
 spec:
   storageClassName: manual
   accessModes:
