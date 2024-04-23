@@ -2,30 +2,23 @@ package helper
 
 import (
 	"errors"
+	"fmt"
 	"github.com/gofiber/fiber/v2"
 	"io"
-	"net/http"
 )
 
-func CheckHDFSConnection() error {
+func CheckHDFSConnection() bool {
 	env, err := LoadEnv()
 	if err != nil {
-		return err
+		return false
 	}
 
-	resp, err := HttpRequest(fiber.MethodGet, env.HdfsUrl, nil, nil)
-	if err != nil {
-		return err
-	}
-	defer func(Body io.ReadCloser) {
-		_ = Body.Close()
-	}(resp.Body)
-
-	if resp.StatusCode == http.StatusOK {
-		return nil
+	isAccessible := IsURLAccessible(env.HdfsUrl)
+	if !isAccessible {
+		return false
 	}
 
-	return errors.New("HDFS unknown error")
+	return true
 }
 
 func HDFSMkdir(path string) error {
@@ -54,12 +47,14 @@ func HDFSMkdir(path string) error {
 func HDFSRmdir(path string) error {
 	env, err := LoadEnv()
 	if err != nil {
+		fmt.Println("Error rmdir", err.Error())
 		return err
 	}
 	url := env.HdfsUrl + "/webhdfs/v1" + path + "?user.name=hdfs&op=DELETE&recursive=true"
 
 	resp, err := HttpRequest(fiber.MethodDelete, url, nil, nil)
 	if err != nil {
+		fmt.Println("Error rmdir", err.Error())
 		return err
 	}
 	defer func(Body io.ReadCloser) {
@@ -67,8 +62,10 @@ func HDFSRmdir(path string) error {
 	}(resp.Body)
 
 	if resp.StatusCode != fiber.StatusOK {
+		fmt.Println("Error rmdir", err.Error())
 		return errors.New(string(rune(resp.StatusCode)))
 	}
 
+	fmt.Println("OK rmdir")
 	return nil
 }

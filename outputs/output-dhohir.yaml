@@ -11,7 +11,6 @@ spec:
     - ReadWriteOnce
   hostPath:
     path: /tmp/jupyter-dhohir
-
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

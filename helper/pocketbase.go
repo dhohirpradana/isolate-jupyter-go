@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/gofiber/fiber/v2"
 	"io"
-	"net/http"
 )
 
 func CheckPBConnection() bool {
@@ -15,19 +15,12 @@ func CheckPBConnection() bool {
 		return false
 	}
 
-	resp, err := HttpRequest(fiber.MethodGet, env.PbUrl, nil, nil)
-	if err != nil {
+	isAccessible := IsURLAccessible(env.PbUrl)
+	if !isAccessible {
 		return false
 	}
-	defer func(Body io.ReadCloser) {
-		_ = Body.Close()
-	}(resp.Body)
 
-	if resp.StatusCode == http.StatusNotFound {
-		return true
-	} else {
-		return false
-	}
+	return true
 }
 
 func getToken() (string, error) {
@@ -121,32 +114,42 @@ func CheckUser(username, email string) error {
 		return err
 	}
 
-	emailExists := false
-	usernameExists := false
-
 	for _, user := range users {
 		if itemMap, ok := user.(map[string]interface{}); ok {
 			if emailField, ok := itemMap["email"].(string); ok {
 				if emailField == email {
-					emailExists = true
-					break
+					return errors.New("pocketbase user already exists")
 				}
 			}
 
 			if usernameField, ok := itemMap["username"].(string); ok {
 				if usernameField == username {
-					usernameExists = true
-					break
+					return errors.New("pocketbase user already exists")
 				}
 			}
 		}
 	}
 
-	if emailExists || usernameExists {
-		return errors.New("pocketbase user already exists")
+	return nil
+}
+
+func CheckUserById(id string) error {
+	users, err := ListUsers()
+	if err != nil {
+		return err
 	}
 
-	return nil
+	for _, user := range users {
+		if itemMap, ok := user.(map[string]interface{}); ok {
+			if idField, ok := itemMap["id"].(string); ok {
+				if idField == id {
+					return nil
+				}
+			}
+		}
+	}
+
+	return errors.New("pocketbase user for create by not exists")
 }
 
 func CreateUser(email, username, password, firstname, lastname, jPort, createdBy, company string) error {
@@ -198,11 +201,13 @@ func CreateUser(email, username, password, firstname, lastname, jPort, createdBy
 func DeleteUser(username string) error {
 	env, err := LoadEnv()
 	if err != nil {
+		fmt.Println("Error delete user", err.Error())
 		return err
 	}
 
 	token, err := getToken()
 	if err != nil {
+		fmt.Println("Error delete user", err.Error())
 		return err
 	}
 
@@ -213,6 +218,7 @@ func DeleteUser(username string) error {
 
 	users, err := ListUsers()
 	if err != nil {
+		fmt.Println("Error delete user", err.Error())
 		return err
 	}
 
@@ -223,17 +229,20 @@ func DeleteUser(username string) error {
 					userId := itemMap["id"].(string)
 					resp, err := HttpRequest(fiber.MethodDelete, env.PbUserUrl+"/"+userId, nil, headers)
 					if err != nil {
+						fmt.Println("Error delete user", err.Error())
 						return err
 					}
 					func(Body io.ReadCloser) {
 						_ = Body.Close()
 					}(resp.Body)
 
+					fmt.Println("OK delete user")
 					return nil
 				}
 			}
 		}
 	}
 
+	fmt.Println("OK delete user")
 	return nil
 }

@@ -25,3 +25,11 @@ func HttpRequest(method, url string, body io.Reader, headers map[string]string) 
 
 	return resp, nil
 }
+
+func IsURLAccessible(url string) bool {
+	_, err := http.Head(url)
+	if err != nil {
+		return false
+	}
+	return true
+}

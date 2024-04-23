@@ -102,3 +102,16 @@ func GenerateYaml(serviceName, port string) error {
 
 	return nil
 }
+
+func DeleteFile(username string) error {
+	filePath := "outputs/output-" + username + ".yaml"
+
+	err := os.Remove(filePath)
+	if err != nil {
+		fmt.Println("Error delete YAML file", err.Error())
+		return err
+	}
+
+	fmt.Println("OK delete YAML file")
+	return nil
+}

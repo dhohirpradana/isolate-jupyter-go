@@ -5,6 +5,8 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"gopkg.in/validator.v2"
 	"isolate-jupyter-go/entity"
+	"os"
+	"os/exec"
 )
 
 type RegisterHandler struct {
@@ -20,8 +22,8 @@ func (h RegisterHandler) Register(c *fiber.Ctx) (err error) {
 		return fiber.NewError(fiber.StatusInternalServerError, "Pocketbase service not OK")
 	}
 
-	err = CheckHDFSConnection()
-	if err != nil {
+	okHdfs := CheckHDFSConnection()
+	if !okHdfs {
 		return fiber.NewError(fiber.StatusInternalServerError, "HDFS service not OK")
 	}
 
@@ -40,7 +42,13 @@ func (h RegisterHandler) Register(c *fiber.Ctx) (err error) {
 	}
 
 	// Check User
-	err = CheckUser(register.Email, register.Username)
+	err = CheckUser(register.Username, register.Email)
+	if err != nil {
+		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
+	}
+
+	// Check CreatedBy
+	err = CheckUserById(register.CreatedBy)
 	if err != nil {
 		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
 	}
@@ -52,27 +60,51 @@ func (h RegisterHandler) Register(c *fiber.Ctx) (err error) {
 	}
 	fmt.Println("UNUSED PORT", port)
 
-	// Generate YAML
-	err = GenerateYaml(register.Username, port)
+	// Create User Pocketbase
+	err = CreateUser(
+		register.Email,
+		register.Username,
+		register.Password,
+		register.FirstName,
+		register.LastName,
+		port,
+		register.CreatedBy,
+		register.Company,
+	)
 	if err != nil {
-		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
+		return fiber.NewError(fiber.StatusInternalServerError, "Pocketbase create user not OK")
 	}
 
 	// HDFS
 	path := "/usersapujagad/" + register.Company + "/" + register.Username
 	err = HDFSMkdir(path)
 	if err != nil {
+		_ = DeleteUser(register.Username)
+
 		return fiber.NewError(fiber.StatusInternalServerError, "HDFS mkdir not OK")
 	}
 
+	// Generate YAML
+	err = GenerateYaml(register.Username, port)
+	if err != nil {
+		_ = HDFSRmdir(path)
+		_ = DeleteUser(register.Username)
+
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+
 	// Kubectl
-	//cmd := exec.Command("kubectl", "get", "node" , "--kubeconfig", "kubeconfig")
-	//
-	//cmd.Stdout = os.Stdout
-	//
-	//if err := cmd.Run(); err != nil {
-	//	fmt.Println("could not run command: ", err)
-	//}
+	cmd := exec.Command("kubectl", "get", "node", "--kubeconfig", "kubeconfig")
+
+	cmd.Stdout = os.Stdout
+
+	if err := cmd.Run(); err != nil {
+		_ = DeleteFile(register.Username)
+		_ = HDFSRmdir(path)
+		_ = DeleteUser(register.Username)
+
+		return fiber.NewError(fiber.StatusInternalServerError, "cannot execute command: "+err.Error())
+	}
 
 	// HTTP
 	//body := bytes.NewReader([]byte{})
