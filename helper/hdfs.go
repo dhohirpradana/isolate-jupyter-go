@@ -62,7 +62,7 @@ func HDFSRmdir(path string) error {
 	}(resp.Body)
 
 	if resp.StatusCode != fiber.StatusOK {
-		fmt.Println("Error rmdir", err.Error())
+		fmt.Println("Error rmdir", resp.StatusCode)
 		return errors.New(string(rune(resp.StatusCode)))
 	}
 
