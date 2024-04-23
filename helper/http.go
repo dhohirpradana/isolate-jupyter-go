@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
 
 func HttpRequest(method, url string, body io.Reader, headers map[string]string) (*http.Response, error) {
@@ -31,5 +32,19 @@ func IsURLAccessible(url string) bool {
 	if err != nil {
 		return false
 	}
+	return true
+}
+
+func IsURLAccessibleRecursive(url string, retries int, interval time.Duration) bool {
+	if retries == 0 {
+		return false
+	}
+
+	_, err := http.Head(url)
+	if err != nil {
+		time.Sleep(interval)
+		return IsURLAccessibleRecursive(url, retries-1, interval)
+	}
+
 	return true
 }

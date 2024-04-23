@@ -21,6 +21,7 @@ func LoadEnv() (entity.ENV, error) {
 	env.PbAdminPassword = os.Getenv("PB_ADMIN_PASSWORD")
 	env.Secret = os.Getenv("SECRET")
 	env.SupersetApiUrl = os.Getenv("SUPERSET_API_URL")
+	env.MasterUrl = os.Getenv("MASTER_URL")
 
 	return env, nil
 }

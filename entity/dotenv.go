@@ -7,6 +7,7 @@ type ENV struct {
 	PbAdminMail     string
 	PbUserUrl       string
 	PbAdminPassword string
+	MasterUrl       string
 
 	Secret         string
 	SupersetApiUrl string

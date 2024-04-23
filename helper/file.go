@@ -63,10 +63,10 @@ func validateYamlLabel(s string) error {
 	}
 }
 
-func GenerateYaml(serviceName, port string) error {
+func GenerateYaml(serviceName, port string) (string, error) {
 	err := validateYamlLabel(serviceName)
 	if err != nil {
-		return errors.New("username must be 63 characters or less, unless empty must begin and end with an alphanumeric character, and can contain dashes, underscores, dots, and alphanumerics between")
+		return "", errors.New("username must be 63 characters or less, unless empty must begin and end with an alphanumeric character, and can contain dashes, underscores, dots, and alphanumerics between")
 	}
 
 	filePath := "input.yaml"
@@ -79,17 +79,17 @@ func GenerateYaml(serviceName, port string) error {
 
 	replacedString, err := ReplaceString(yaml, "SERVICE_NAME", serviceName)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	replacedString, err = ReplaceString(replacedString, "SERVICE_PORT", port)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	file, err := os.Create(savePath)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer func(file *os.File) {
 		_ = file.Close()
@@ -97,10 +97,10 @@ func GenerateYaml(serviceName, port string) error {
 
 	_, err = file.WriteString(replacedString)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	return nil
+	return savePath, nil
 }
 
 func DeleteFile(username string) error {

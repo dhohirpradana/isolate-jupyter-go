@@ -1,12 +1,13 @@
 package helper
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/gofiber/fiber/v2"
 	"gopkg.in/validator.v2"
+	"io"
 	"isolate-jupyter-go/entity"
-	"os"
-	"os/exec"
+	"time"
 )
 
 type RegisterHandler struct {
@@ -17,6 +18,11 @@ func InitRegister() RegisterHandler {
 }
 
 func (h RegisterHandler) Register(c *fiber.Ctx) (err error) {
+	env, err := LoadEnv()
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+
 	okPB := CheckPBConnection()
 	if !okPB {
 		return fiber.NewError(fiber.StatusInternalServerError, "Pocketbase service not OK")
@@ -75,7 +81,7 @@ func (h RegisterHandler) Register(c *fiber.Ctx) (err error) {
 		return fiber.NewError(fiber.StatusInternalServerError, "Pocketbase create user not OK")
 	}
 
-	// HDFS
+	// HDFS Make Dir
 	path := "/usersapujagad/" + register.Company + "/" + register.Username
 	err = HDFSMkdir(path)
 	if err != nil {
@@ -85,7 +91,7 @@ func (h RegisterHandler) Register(c *fiber.Ctx) (err error) {
 	}
 
 	// Generate YAML
-	err = GenerateYaml(register.Username, port)
+	yamlPath, err := GenerateYaml(register.Username, port)
 	if err != nil {
 		_ = HDFSRmdir(path)
 		_ = DeleteUser(register.Username)
@@ -93,38 +99,95 @@ func (h RegisterHandler) Register(c *fiber.Ctx) (err error) {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
 
-	// Kubectl
-	cmd := exec.Command("kubectl", "get", "node", "--kubeconfig", "kubeconfig")
-
-	cmd.Stdout = os.Stdout
-
-	if err := cmd.Run(); err != nil {
+	// Kubectl Apply YAML
+	applyCommand := "kubectl -n sapujagad2 apply -f " + yamlPath + " --kubeconfig kubeconfig"
+	err = KubeExec(applyCommand)
+	if err != nil {
 		_ = DeleteFile(register.Username)
 		_ = HDFSRmdir(path)
 		_ = DeleteUser(register.Username)
 
-		return fiber.NewError(fiber.StatusInternalServerError, "cannot execute command: "+err.Error())
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
 
-	// HTTP
-	//body := bytes.NewReader([]byte{})
-	//
-	//headers := map[string]string{
-	//	fiber.HeaderContentType: fiber.MIMEApplicationJSON,
-	//}
+	// Check is Jupyter Server Ready
+	jupyterUrl := env.MasterUrl + ":" + port
+	isJupyterReady := IsURLAccessibleRecursive(jupyterUrl, 20, 3*time.Second)
+	if !isJupyterReady {
+		deleteCommand := "kubectl -n sapujagad2 delete -f " + yamlPath + " --kubeconfig kubeconfig"
+		_ = KubeExec(deleteCommand)
+		_ = DeleteFile(register.Username)
+		_ = HDFSRmdir(path)
+		_ = DeleteUser(register.Username)
 
-	//resp, err := HttpRequest(fiber.MethodGet, "url", body, headers)
-	//if err != nil {
-	//	fmt.Printf("Error during HTTP request: %v\n", err)
-	//	return
-	//}
-	//defer resp.Body.Close()
+		return fiber.NewError(fiber.StatusInternalServerError, "Jupyter server not available, deleting services")
+	}
 
 	c.Set(fiber.HeaderContentType, fiber.MIMEApplicationJSON)
-	err = c.Send([]byte("OK"))
+	return c.Send([]byte("OK"))
+}
+
+func (h RegisterHandler) DeleteUser(c *fiber.Ctx) (err error) {
+	id := c.Params("id")
+
+	env, err := LoadEnv()
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+
+	token, err := getToken()
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+
+	headers := map[string]string{
+		fiber.HeaderContentType: fiber.MIMEApplicationJSON,
+		"Authorization":         "Bearer " + token,
+	}
+
+	resp, err := HttpRequest(fiber.MethodGet, env.PbUserUrl+"/"+id, nil, headers)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(resp.Body)
+
+	if resp.StatusCode == fiber.StatusNotFound {
+		return fiber.NewError(fiber.StatusNotFound, "User with id "+id+" not found")
+	}
+
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
 
-	return nil
+	var data map[string]interface{}
+	err = json.Unmarshal(body, &data)
+	if err != nil {
+		return err
+	}
+
+	username, ok := data["username"].(string)
+	if !ok {
+		return fiber.NewError(fiber.StatusInternalServerError, "Error get username")
+	}
+
+	company, ok := data["company"].(string)
+	if !ok {
+		return fiber.NewError(fiber.StatusInternalServerError, "Error get company")
+	}
+
+	filePath := "outputs/output-" + username + ".yaml"
+	deleteCommand := "kubectl -n sapujagad2 delete -f " + filePath + " --kubeconfig kubeconfig"
+	_ = KubeExec(deleteCommand)
+
+	_ = DeleteFile(username)
+
+	path := "/usersapujagad/" + company + "/" + username
+	_ = HDFSRmdir(path)
+
+	_ = DeleteUser(username)
+
+	return c.SendString("User id, " + id + " username, " + username + " company, " + company + " deleted")
 }

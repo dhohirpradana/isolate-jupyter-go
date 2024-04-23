@@ -24,7 +24,8 @@ func main() {
 
 	app.Use(cors.New())
 
-	app.Post("/register", isolateJupyter.Register)
+	app.Post("/user", isolateJupyter.Register)
+	app.Delete("/user/:id", isolateJupyter.DeleteUser)
 	app.Get("/metrics", monitor.New())
 
 	log.Fatal(app.Listen(":9090"))

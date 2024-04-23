@@ -1,7 +1,9 @@
 package helper
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -30,4 +32,14 @@ func UnusedPort() (string, error) {
 		fmt.Printf("Error executing script: %v\n", err)
 		return "", err
 	}
+}
+
+func KubeExec(bashCommand string) error {
+	cmd := exec.Command(bashCommand)
+	cmd.Stdout = os.Stdout
+
+	if err := cmd.Run(); err != nil {
+		return errors.New("cannot execute command: " + err.Error())
+	}
+	return nil
 }
