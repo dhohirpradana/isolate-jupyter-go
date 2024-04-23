@@ -187,7 +187,7 @@ func (h RegisterHandler) DeleteUser(c *fiber.Ctx) (err error) {
 	path := "/usersapujagad/" + company + "/" + username
 	_ = HDFSRmdir(path)
 
-	_ = DeleteUser(username)
+	_ = DeleteUser(id)
 
 	return c.SendString("User id, " + id + " username, " + username + " company, " + company + " deleted")
 }
