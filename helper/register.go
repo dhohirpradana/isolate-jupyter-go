@@ -8,8 +8,9 @@ import (
 	"gopkg.in/validator.v2"
 	"io"
 	"isolate-jupyter-go/entity"
-	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -18,6 +19,42 @@ type RegisterHandler struct {
 
 func InitRegister() RegisterHandler {
 	return RegisterHandler{}
+}
+
+func (h RegisterHandler) Test(c *fiber.Ctx) (err error) {
+	var dlDir entity.DlDir
+
+	if err := c.BodyParser(&dlDir); err != nil {
+		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
+	}
+
+	if err := validator.Validate(dlDir); err != nil {
+		return fiber.NewError(fiber.StatusUnprocessableEntity, err.Error())
+	}
+
+	username := dlDir.Username
+	podName := "jupyter-" + username + "-0"
+	dir := dlDir.Dir
+	lastDir := filepath.Base(dir)
+	args := []string{"-n", "sapujagad2", "--kubeconfig", "kubeconfig", "cp", podName + ":" + dir, lastDir}
+	err = Exec("kubectl", args)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+
+	args1 := []string{"-r", lastDir + ".zip", lastDir}
+	err = Exec("zip", args1)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+
+	defer func() {
+		os.RemoveAll(lastDir)
+		os.Remove(lastDir + ".zip")
+	}()
+
+	c.Set(fiber.HeaderContentType, "application/zip")
+	return c.SendFile(lastDir + ".zip")
 }
 
 func (h RegisterHandler) KubeClientTest(c *fiber.Ctx) (err error) {
@@ -40,30 +77,35 @@ func (h RegisterHandler) KubeClientTest(c *fiber.Ctx) (err error) {
 		fmt.Printf("Deployment Name: %s\n", deploy.Name)
 	}
 
-	labels := map[string]string{
-		"app": "nginx",
-	}
-
-	ports := []apiv1.ContainerPort{
-		{
-			Name:          "http",
-			ContainerPort: 80,
-		},
-	}
+	//labels := map[string]string{
+	//	"app": "nginx",
+	//}
+	//
+	//ports := []apiv1.ContainerPort{
+	//	{
+	//		Name:          "http",
+	//		ContainerPort: 80,
+	//	},
+	//}
 
 	// Create sample nginx deployment
-	errCreateDpy := CreateDeployment(
-		client,
-		"backend",
-		"nginx-deployment",
-		"nginx",
-		"nginx",
-		1,
-		labels,
-		ports,
-	)
-	if errCreateDpy != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, errCreateDpy.Error())
+	//errCreateDpy := CreateDeployment(
+	//	client,
+	//	"backend",
+	//	"nginx-deployment",
+	//	"nginx",
+	//	"nginx",
+	//	1,
+	//	labels,
+	//	ports,
+	//)
+	//if errCreateDpy != nil {
+	//	return fiber.NewError(fiber.StatusInternalServerError, errCreateDpy.Error())
+	//}
+
+	errDeleteDpy := DeleteDeployment(client, "backend", "nginx-deployment")
+	if errDeleteDpy != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, errDeleteDpy.Error())
 	}
 
 	//deploy, err := client.AppsV1().Deployments("backend").Get(
@@ -162,14 +204,14 @@ func (h RegisterHandler) Register(c *fiber.Ctx) (err error) {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
 
-	err = KubeExec("cat", []string{yamlPath})
+	err = Exec("cat", []string{yamlPath})
 	if err != nil {
 		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
 	}
 
 	// Kubectl Apply YAML
 	applyArgs := []string{"-n", "sapujagad2", "apply", "-f", yamlPath, "--kubeconfig", "kubeconfig"}
-	err = KubeExec("kubectl", applyArgs)
+	err = Exec("kubectl", applyArgs)
 	if err != nil {
 		_ = HDFSRmdir(path)
 		_ = DeleteUser(register.Username)
@@ -182,7 +224,7 @@ func (h RegisterHandler) Register(c *fiber.Ctx) (err error) {
 	isJupyterReady := IsURLAccessibleRecursive(jupyterUrl, 20, 3*time.Second)
 	if !isJupyterReady {
 		deleteArgs := []string{"-n", "sapujagad2", "delete", "-f", yamlPath, "--kubeconfig", "kubeconfig"}
-		_ = KubeExec("kubectl", deleteArgs)
+		_ = Exec("kubectl", deleteArgs)
 		_ = HDFSRmdir(path)
 		_ = DeleteUser(register.Username)
 
@@ -251,7 +293,7 @@ func (h RegisterHandler) DeleteUser(c *fiber.Ctx) (err error) {
 	}
 
 	deleteArgs := []string{"-n", "sapujagad2", "delete", "-f", yamlPath, "--kubeconfig kubeconfig"}
-	_ = KubeExec("kubectl", deleteArgs)
+	_ = Exec("kubectl", deleteArgs)
 
 	path := "/usersapujagad/" + company + "/" + username
 	_ = HDFSRmdir(path)

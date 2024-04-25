@@ -92,7 +92,7 @@ spec:
                 name: zookeeper-env-k4htkf44kk
           env:
             - name: HADOOP_USER_NAME
-              value: dhohir2
+              value: hdfs
             - name: HADOOP_CLASSPATH
               value: $(TEZ_CONF_DIR):$(TEZ_JARS)/*:$(TEZ_JARS)/lib/*
             - name: JAVA_HOME
