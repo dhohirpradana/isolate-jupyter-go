@@ -25,6 +25,7 @@ func main() {
 	app.Use(cors.New())
 
 	app.Post("/user", isolateJupyter.Register)
+	app.Get("/kube-test", isolateJupyter.KubeClientTest)
 	app.Delete("/user/:id", isolateJupyter.DeleteUser)
 	app.Get("/metrics", monitor.New())
 

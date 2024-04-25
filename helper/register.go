@@ -1,12 +1,14 @@
 package helper
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/gofiber/fiber/v2"
 	"gopkg.in/validator.v2"
 	"io"
 	"isolate-jupyter-go/entity"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"time"
 )
 
@@ -15,6 +17,40 @@ type RegisterHandler struct {
 
 func InitRegister() RegisterHandler {
 	return RegisterHandler{}
+}
+
+func (h RegisterHandler) KubeClientTest(c *fiber.Ctx) (err error) {
+	client, err := CreateClient("kubeconfig")
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+
+	deployList, err := client.AppsV1().Deployments("backend").List(
+		context.Background(),
+		metav1.ListOptions{},
+	)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+
+	// Now you can iterate over deployList.Items to access individual deployments
+	for _, deploy := range deployList.Items {
+		// Access deployment details
+		fmt.Printf("Deployment Name: %s\n", deploy.Name)
+	}
+
+	deploy, err := client.AppsV1().Deployments("backend").Get(
+		context.Background(),
+		"cors-deployment",
+		metav1.GetOptions{},
+	)
+	if err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	}
+
+	fmt.Println(deploy.Status)
+
+	return c.SendString("OK")
 }
 
 func (h RegisterHandler) Register(c *fiber.Ctx) (err error) {
