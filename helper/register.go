@@ -8,6 +8,7 @@ import (
 	"gopkg.in/validator.v2"
 	"io"
 	"isolate-jupyter-go/entity"
+	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"time"
 )
@@ -39,16 +40,42 @@ func (h RegisterHandler) KubeClientTest(c *fiber.Ctx) (err error) {
 		fmt.Printf("Deployment Name: %s\n", deploy.Name)
 	}
 
-	deploy, err := client.AppsV1().Deployments("backend").Get(
-		context.Background(),
-		"cors-deployment",
-		metav1.GetOptions{},
-	)
-	if err != nil {
-		return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	labels := map[string]string{
+		"app": "nginx",
 	}
 
-	fmt.Println(deploy.Status)
+	ports := []apiv1.ContainerPort{
+		{
+			Name:          "http",
+			ContainerPort: 80,
+		},
+	}
+
+	// Create sample nginx deployment
+	errCreateDpy := CreateDeployment(
+		client,
+		"backend",
+		"nginx-deployment",
+		"nginx",
+		"nginx",
+		1,
+		labels,
+		ports,
+	)
+	if errCreateDpy != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, errCreateDpy.Error())
+	}
+
+	//deploy, err := client.AppsV1().Deployments("backend").Get(
+	//	context.Background(),
+	//	"cors-deployment",
+	//	metav1.GetOptions{},
+	//)
+	//if err != nil {
+	//	return fiber.NewError(fiber.StatusInternalServerError, err.Error())
+	//}
+	//
+	//fmt.Println(deploy.Status)
 
 	return c.SendString("OK")
 }

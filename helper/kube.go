@@ -137,3 +137,16 @@ func CreateDeployment(
 	fmt.Println("Deployment created successfully!")
 	return nil
 }
+
+func DeleteDeployment(clientset kubernetes.Interface, namespace, name string) error {
+	err := clientset.AppsV1().Deployments(namespace).Delete(
+		context.Background(),
+		name,
+		metav1.DeleteOptions{},
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
