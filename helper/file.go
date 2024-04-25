@@ -7,7 +7,6 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"time"
 )
 
 func getYaml(filePath string) (string, error) {
@@ -102,19 +101,4 @@ func GenerateYaml(serviceName, port string) (string, error) {
 	}
 
 	return savePath, nil
-}
-
-func checkFileExists(filePath string) bool {
-	_, err := os.Stat(filePath)
-	return !os.IsNotExist(err)
-}
-
-func waitForFile(filePath string, maxRetries int, retryInterval time.Duration) bool {
-	for i := 0; i < maxRetries; i++ {
-		if checkFileExists(filePath) {
-			return true
-		}
-		time.Sleep(retryInterval)
-	}
-	return false
 }
